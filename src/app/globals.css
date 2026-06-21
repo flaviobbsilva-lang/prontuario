@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #FAF7F2;
+  --color-lilac: #C8B8E0;
+  --color-purple: #5B3F8C;
+  --color-gold: #B8956A;
+  --color-ink: #2A2436;
+  --color-muted: #6B6478;
+  --font-display: Georgia, "Times New Roman", ui-serif, serif;
+}
+
+html, body { background: var(--color-paper); color: var(--color-ink); }
+* { -webkit-font-smoothing: antialiased; }
