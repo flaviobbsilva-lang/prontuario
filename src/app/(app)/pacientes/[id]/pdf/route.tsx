@@ -3,6 +3,7 @@ import { brand } from "@/lib/brand";
 import { formatScoreForPrint } from "@/domain/scoring";
 import { Document, Page, View, Text, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { decryptObjeto } from "@/lib/crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,11 +30,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: p } = await supabase.from("pacientes").select("*").eq("id", id).single();
-  if (!p) return new Response("Paciente não encontrado", { status: 404 });
+  const { data: pBruto } = await supabase.from("pacientes").select("*").eq("id", id).single();
+  if (!pBruto) return new Response("Paciente não encontrado", { status: 404 });
+  const p = decryptObjeto(pBruto, ["nome", "cpf", "telefone", "email"])!;
   await supabase.rpc("log_read", { p_entidade: "paciente_pdf", p_entidade_id: id });
-  const { data: h } = await supabase.from("historia_clinica").select("*").eq("paciente_id", id).maybeSingle();
-  const { data: notas } = await supabase.from("notas_soap").select("*").eq("paciente_id", id).order("created_at", { ascending: false }).limit(10);
+  const { data: hBruto } = await supabase.from("historia_clinica").select("*").eq("paciente_id", id).maybeSingle();
+  const h = decryptObjeto(hBruto, [
+    "queixa_principal", "historia_doenca_atual", "historia_pregressa",
+    "antecedentes_pessoais", "antecedentes_familiares", "habitos",
+    "alergias", "medicamentos_em_uso",
+  ]);
+  const { data: notasBrutas } = await supabase.from("notas_soap").select("*").eq("paciente_id", id).order("created_at", { ascending: false }).limit(10);
+  const notas = (notasBrutas ?? []).map((n: any) => decryptObjeto(n, ["subjetivo", "objetivo", "avaliacao", "plano"]));
 
   // último resultado de cada escala
   const { data: resp } = await supabase.from("escala_respostas")
