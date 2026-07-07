@@ -9,7 +9,8 @@
     "start": "next start",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "seed": "tsx scripts/seed-escalas.ts"
+    "seed": "tsx scripts/seed-escalas.ts",
+    "encrypt-existing": "tsx scripts/encrypt-existing-data.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.1.6",
