@@ -5,6 +5,7 @@ import EscalaForm from "@/components/EscalaForm";
 import EvolutionChart, { type SeriePonto } from "@/components/EvolutionChart";
 import { salvarHistoria, criarNota } from "@/app/actions";
 import { brand } from "@/lib/brand";
+import Neuromodulacao from "@/components/Neuromodulacao";
 
 const CAMPOS_HISTORIA: Array<[string, string]> = [
   ["queixa_principal", "Queixa principal"],
@@ -27,8 +28,8 @@ function idade(nasc: string) {
 export default function PacienteTabs({ paciente, historia, notas, respostas, escalas }: {
   paciente: any; historia: any; notas: any[]; respostas: any[]; escalas: ScaleDefinition[];
 }) {
-  const [aba, setAba] = useState<"historia" | "soap" | "escalas">("historia");
-  const abas = [["historia", "História"], ["soap", "Evoluções"], ["escalas", "Escalas"]] as const;
+  const [aba, setAba] = useState<"historia" | "soap" | "escalas" | "neuro">("historia");
+  const abas = [["historia", "História"], ["soap", "Evoluções"], ["escalas", "Escalas"], ["neuro", "Neuromodulação"]] as const;
 
   return (
     <div className="p-8 max-w-4xl">
@@ -43,7 +44,7 @@ export default function PacienteTabs({ paciente, historia, notas, respostas, esc
           className="rounded-lg border border-purple px-4 py-2 text-sm text-purple">Exportar PDF</a>
       </header>
 
-      <nav className="mt-4 flex gap-1">
+      <nav className="mt-4 flex flex-wrap gap-1">
         {abas.map(([k, label]) => (
           <button key={k} onClick={() => setAba(k)}
             className={`rounded-lg px-4 py-2 text-sm ${aba === k ? "bg-purple text-white" : "text-ink hover:bg-lilac/30"}`}>
@@ -53,6 +54,7 @@ export default function PacienteTabs({ paciente, historia, notas, respostas, esc
       </nav>
 
       <section className="mt-6">
+        <div hidden={aba !== "neuro"}><Neuromodulacao pacienteId={paciente.id} notas={notas} /></div>
         {aba === "historia" && <HistoriaTab pacienteId={paciente.id} historia={historia} />}
         {aba === "soap" && <SoapTab pacienteId={paciente.id} notas={notas} />}
         {aba === "escalas" && <EscalasTab pacienteId={paciente.id} escalas={escalas} respostas={respostas} />}
