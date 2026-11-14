@@ -1,13 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Users, Activity, LogOut } from "lucide-react";
+import { Users, Activity, LogOut, CalendarDays } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { brand } from "@/lib/brand";
 
 const nav = [
   { href: "/", label: "Painel", icon: Activity },
   { href: "/pacientes", label: "Pacientes", icon: Users },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
