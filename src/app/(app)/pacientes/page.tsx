@@ -12,6 +12,36 @@ function idade(nasc: string) {
 
 export default async function Pacientes() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: perfil } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  if (perfil?.role === "secretaria") {
+    const { data, error } = await supabase.rpc("pacientes_para_agenda");
+    const cadastros = ((data ?? []) as {
+      id: string; nome: string; telefone: string | null; data_nascimento: string; ativo: boolean;
+    }[]).filter((p) => p.ativo).map((p) => ({ ...p, nome: decryptField(p.nome) }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return <div className="p-4 sm:p-8">
+      <h1 className="text-3xl text-ink">Pacientes</h1>
+      {error ? <p role="alert" className="mt-4">Não foi possível carregar os cadastros.</p> :
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-lilac"><tr>
+              <th className="px-3 py-2">Nome</th><th className="px-3 py-2">Nascimento</th><th className="px-3 py-2">Telefone</th>
+            </tr></thead>
+            <tbody>
+              {cadastros.map((p) => <tr key={p.id} className="border-b border-lilac/50">
+                <td className="px-3 py-2">{p.nome}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.data_nascimento.split("-").reverse().join("/")}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.telefone ? decryptField(p.telefone) : "—"}</td>
+              </tr>)}
+            </tbody>
+          </table>
+          {!cadastros.length && <p className="mt-3 text-sm text-muted">Nenhum cadastro ativo.</p>}
+        </div>}
+    </div>;
+  }
   const { data: pacientesBrutos } = await supabase.from("pacientes")
     .select("id, nome, data_nascimento, cpf").eq("ativo", true);
 

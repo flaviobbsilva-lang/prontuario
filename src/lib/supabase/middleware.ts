@@ -29,7 +29,7 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (user && !isPublic && path !== "/agenda") {
+  if (user && !isPublic && path !== "/agenda" && path !== "/pacientes") {
     const { data: perfil } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
     if (perfil?.role === "secretaria") {
       if (path.startsWith("/api/") || path.endsWith("/pdf")) {

@@ -30,7 +30,7 @@ export default function AppShell({ children, apenasAgenda = false }: {
           <p className="text-xs text-muted mt-1">{brand.clinicName}</p>
         </div>
         <nav className="px-3 space-y-1">
-          {nav.filter(({ href }) => !apenasAgenda || href === "/agenda").map(({ href, label, icon: Icon }) => {
+          {nav.filter(({ href }) => !apenasAgenda || href !== "/").map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? path === "/" : path.startsWith(href);
             return (
               <Link key={href} href={href}

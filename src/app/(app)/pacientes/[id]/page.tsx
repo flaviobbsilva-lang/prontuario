@@ -17,9 +17,9 @@ export default async function PacienteDetalhe({ params }: { params: Promise<{ id
   const supabase = await createClient();
 
   const { data: pacienteBruto } = await supabase.from("pacientes")
-    .select("id, nome, data_nascimento, cpf, telefone, email").eq("id", id).single();
+    .select("id, nome, data_nascimento, cpf, telefone, email, endereco").eq("id", id).single();
   if (!pacienteBruto) notFound();
-  const paciente = decryptObjeto(pacienteBruto, ["nome", "cpf", "telefone", "email"])!;
+  const paciente = decryptObjeto(pacienteBruto, ["nome", "cpf", "telefone", "email", "endereco"])!;
 
   // LGPD: registra a leitura do prontuário
   await supabase.rpc("log_read", { p_entidade: "paciente", p_entidade_id: id });
