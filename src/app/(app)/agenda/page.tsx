@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { decryptField } from "@/lib/crypto";
+import DadosAgendamento from "@/components/DadosAgendamento";
 import { registrarComparecimento, salvarAgenda } from "./actions";
 
 const fuso = "America/Sao_Paulo";
@@ -29,11 +30,14 @@ export default async function Agenda({ searchParams }: {
     banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, contato_nascimento, comparecimento, pacientes(nome)")
       .eq("cancelado", false).lt("inicio", new Date(+inicio + 86400000).toISOString())
       .gt("fim", inicio.toISOString()).order("inicio"),
-    banco.from("pacientes").select("id, nome").eq("ativo", true),
+    banco.from("pacientes").select("id, nome, telefone, data_nascimento").eq("ativo", true),
   ]);
-  const nomes = (pacientes.data ?? []).map((p) => ({ ...p, nome: decryptField(p.nome) }))
+  const nomes = (pacientes.data ?? []).map((p) => ({
+    id: p.id, nome: decryptField(p.nome),
+    telefone: p.telefone ? decryptField(p.telefone) : "",
+    nascimento: p.data_nascimento ?? "",
+  }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  const opcoes = nomes.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>);
   const indisponivel = Boolean(agenda.error || pacientes.error);
   const consultas = agenda.data ?? [];
   const intervalo = 30 * 60_000;
@@ -97,10 +101,7 @@ export default async function Agenda({ searchParams }: {
           </section>
           <form id="novo-agendamento" key={dia + (params.hora ?? "")}
             action={salvarAgenda.bind(null, dia, null)} className="flex flex-wrap items-end gap-2 text-sm">
-            <label className="grid gap-1">Paciente<select className={campo} name="paciente" defaultValue=""><option value="">Primeira consulta</option>{opcoes}</select></label>
-            <label className="grid gap-1">Telefone de contato<input className={campo} name="telefone" type="tel" maxLength={40} /></label>
-            <label className="grid gap-1">Nome completo<input className={campo} name="nome" maxLength={160} /></label>
-            <label className="grid gap-1">Data de nascimento<input className={campo} name="nascimento" type="date" max={hoje} /></label>
+            <DadosAgendamento pacientes={nomes} hoje={hoje} campo={campo} />
             <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" defaultValue={params.hora} required /></label>
             <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue="30" required /></label>
             <button className="rounded-lg bg-purple px-3 py-2 text-white">Agendar</button>
@@ -131,14 +132,10 @@ export default async function Agenda({ searchParams }: {
               <details className="mt-2">
                 <summary className="cursor-pointer">Editar consulta</summary>
                 <form action={salvarAgenda.bind(null, dataInicio, item.id)} className="mt-2 flex flex-wrap items-end gap-2">
-                  <label className="grid gap-1">Vincular à ficha<select className={campo} name="paciente" defaultValue={item.paciente_id ?? ""}>
-                    <option value="">Primeira consulta</option>
-                    {item.paciente_id && !nomes.some((p) => p.id === item.paciente_id) && <option value={item.paciente_id}>{nome}</option>}
-                    {opcoes}
-                  </select></label>
-                  <label className="grid gap-1">Telefone de contato<input className={campo} name="telefone" type="tel" maxLength={40} defaultValue={telefone} /></label>
-                  <label className="grid gap-1">Nome completo<input className={campo} name="nome" maxLength={160} defaultValue={nomeContato} /></label>
-                  <label className="grid gap-1">Data de nascimento<input className={campo} name="nascimento" type="date" max={hoje} defaultValue={nascimento} /></label>
+                  <DadosAgendamento pacienteId={item.paciente_id ?? ""}
+                    pacientes={item.paciente_id && !nomes.some((p) => p.id === item.paciente_id)
+                      ? [...nomes, { id: item.paciente_id, nome, telefone, nascimento }] : nomes}
+                    inicial={{ nome: nomeContato, telefone, nascimento }} hoje={hoje} campo={campo} />
                   <label className="grid gap-1">Data<input className={campo} name="data" type="date" defaultValue={dataInicio} required /></label>
                   <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" defaultValue={hora(item.inicio)} required /></label>
                   <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue={(Date.parse(item.fim) - Date.parse(item.inicio)) / 60000} required /></label>
