@@ -5,6 +5,7 @@ import EscalaForm from "@/components/EscalaForm";
 import EvolutionChart, { type SeriePonto } from "@/components/EvolutionChart";
 import { salvarHistoria, criarNota } from "@/app/actions";
 import { brand } from "@/lib/brand";
+import DadosPrescricao from "@/components/DadosPrescricao";
 import GravadorAnamnese from "@/components/GravadorAnamnese";
 import Neuromodulacao from "@/components/Neuromodulacao";
 
@@ -53,6 +54,7 @@ export default function PacienteTabs({ paciente, historia, notas, respostas, esc
           </button>
         ))}
       </nav>
+      <DadosPrescricao key={paciente.id} id={paciente.id} cpf={paciente.cpf} endereco={paciente.endereco} />
 
       <section className="mt-6">
         <div hidden={aba !== "neuro"}><Neuromodulacao pacienteId={paciente.id} notas={notas} /></div>

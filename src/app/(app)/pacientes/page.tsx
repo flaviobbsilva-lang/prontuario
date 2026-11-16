@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NovoPaciente from "@/components/NovoPaciente";
+import EditarCadastroSecretaria from "@/components/EditarCadastroSecretaria";
 import { decryptField } from "@/lib/crypto";
 
 function idade(nasc: string) {
@@ -12,6 +13,44 @@ function idade(nasc: string) {
 
 export default async function Pacientes() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: perfil } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  if (perfil?.role === "secretaria") {
+    const { data, error } = await supabase.rpc("cadastros_para_secretaria");
+    const cadastros = ((data ?? []) as {
+      id: string; nome: string; telefone: string | null; data_nascimento: string; cpf: string | null; endereco: string | null;
+    }[]).map((p) => ({
+      ...p, nome: decryptField(p.nome), telefone: p.telefone ? decryptField(p.telefone) : "",
+      cpf: p.cpf ? decryptField(p.cpf) : "", endereco: p.endereco ? decryptField(p.endereco) : "",
+    }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return <div className="p-4 sm:p-8">
+      <h1 className="text-3xl text-ink">Pacientes</h1>
+      {error ? <p role="alert" className="mt-4">Não foi possível carregar os cadastros.</p> :
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-lilac"><tr>
+              <th className="px-3 py-2">Nome</th><th className="px-3 py-2">Nascimento</th><th className="px-3 py-2">Telefone</th>
+              <th className="px-3 py-2">CPF</th><th className="px-3 py-2">Endereço</th><th className="px-3 py-2">Ações</th>
+            </tr></thead>
+            <tbody>
+              {cadastros.map((p) => <tr key={p.id} className="border-b border-lilac/50">
+                <td className="px-3 py-2">{p.nome}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.data_nascimento.split("-").reverse().join("/")}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.telefone || "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2">{p.cpf || "—"}</td>
+                <td className="break-words px-3 py-2">{p.endereco || "—"}</td>
+                <td className="min-w-40 px-3 py-2"><EditarCadastroSecretaria id={p.id} cpf={p.cpf}
+                  endereco={p.endereco} nascimento={p.data_nascimento} telefone={p.telefone} /></td>
+              </tr>)}
+            </tbody>
+          </table>
+          {!cadastros.length && <p className="mt-3 text-sm text-muted">Nenhum cadastro ativo.</p>}
+        </div>}
+    </div>;
+  }
   const { data: pacientesBrutos } = await supabase.from("pacientes")
     .select("id, nome, data_nascimento, cpf").eq("ativo", true);
 

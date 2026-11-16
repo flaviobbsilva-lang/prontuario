@@ -6,7 +6,7 @@ import { criarPaciente } from "@/app/actions";
 export default function NovoPaciente() {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
-  const [f, setF] = useState({ nome: "", dataNascimento: "", cpf: "", telefone: "", email: "" });
+  const [f, setF] = useState({ nome: "", dataNascimento: "", cpf: "", telefone: "", email: "", endereco: "" });
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -41,6 +41,7 @@ export default function NovoPaciente() {
             ["cpf", "CPF", "text"],
             ["telefone", "Telefone", "text"],
             ["email", "E-mail", "email"],
+            ["endereco", "Endereço completo", "text"],
           ].map(([k, label, type]) => (
             <label key={k} className="block text-ink">{label}
               <input type={type} value={(f as any)[k]} onChange={(e) => { setF({ ...f, [k]: e.target.value }); setErro(null); }}

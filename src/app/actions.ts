@@ -19,7 +19,7 @@ async function meId() {
 }
 
 export async function criarPaciente(input: {
-  nome: string; dataNascimento: string; cpf?: string; telefone?: string; email?: string;
+  nome: string; dataNascimento: string; cpf?: string; telefone?: string; email?: string; endereco?: string;
 }) {
   const { supabase } = await meId();
 
@@ -35,6 +35,7 @@ export async function criarPaciente(input: {
     cpf: input.cpf ? encryptDeterministic(limparCPF(input.cpf)) : null,
     telefone: input.telefone ? encryptRandom(input.telefone) : null,
     email: input.email ? encryptRandom(input.email) : null,
+    endereco: input.endereco?.trim() ? encryptRandom(input.endereco.trim()) : null,
   }).select("id").single();
   if (error) {
     // unique constraint em cpf (determinístico) => já existe paciente com esse CPF
@@ -43,6 +44,47 @@ export async function criarPaciente(input: {
   }
   revalidatePath("/pacientes");
   return data;
+}
+
+export async function atualizarDadosPrescricao(id: string, form: FormData) {
+  const { supabase } = await meId();
+  const cpf = String(form.get("cpf") ?? "").trim();
+  const endereco = String(form.get("endereco") ?? "").trim();
+  if (cpf && !cpfValido(cpf)) return { erro: "CPF inválido." };
+  if (endereco.length > 500) return { erro: "O endereço deve ter até 500 caracteres." };
+  const { data, error } = await supabase.from("pacientes").update({
+    cpf: cpf ? encryptDeterministic(limparCPF(cpf)) : null,
+    endereco: endereco ? encryptRandom(endereco) : null,
+  }).eq("id", id).select("id").single();
+  if (!data || error) return { erro: error?.code === "23505" ? "CPF já cadastrado." : "Não foi possível salvar os dados." };
+  revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
+  return { erro: null };
+}
+
+export async function editarCadastroSecretaria(id: string, form: FormData) {
+  const { supabase } = await meId();
+  const cpf = String(form.get("cpf") ?? "").trim();
+  const endereco = String(form.get("endereco") ?? "").trim();
+  const nascimento = String(form.get("nascimento") ?? "").trim();
+  const telefone = String(form.get("telefone") ?? "").trim();
+  if (cpf && !cpfValido(cpf)) return { erro: "CPF inválido." };
+  if (!dataNascimentoValida(nascimento)) return { erro: "Data de nascimento inválida." };
+  if (endereco.length > 500 || telefone.length > 40) return { erro: "Confira o tamanho do endereço e do telefone." };
+  const { data, error } = await supabase.rpc("editar_cadastro_secretaria", {
+    paciente: id,
+    novo_cpf: cpf ? encryptDeterministic(limparCPF(cpf)) : null,
+    novo_endereco: endereco ? encryptRandom(endereco) : null,
+    novo_nascimento: nascimento,
+    novo_telefone: telefone ? encryptRandom(telefone) : null,
+  });
+  if (error || data !== true) {
+    return { erro: error?.code === "23505" ? "CPF já cadastrado." : "Não foi possível salvar o cadastro." };
+  }
+  revalidatePath("/pacientes");
+  revalidatePath(`/pacientes/${id}`);
+  revalidatePath("/agenda");
+  return { erro: null };
 }
 
 export async function salvarHistoria(pacienteId: string, dados: Record<string, string>) {

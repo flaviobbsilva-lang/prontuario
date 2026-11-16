@@ -29,5 +29,17 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
+  if (user && !isPublic && path !== "/agenda" && path !== "/pacientes") {
+    const { data: perfil } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (perfil?.role === "secretaria") {
+      if (path.startsWith("/api/") || path.endsWith("/pdf")) {
+        return new NextResponse(null, { status: 403 });
+      }
+      const url = request.nextUrl.clone();
+      url.pathname = "/agenda";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
   return response;
 }

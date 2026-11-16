@@ -11,7 +11,9 @@ const nav = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
 ];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppShell({ children, apenasAgenda = false }: {
+  children: React.ReactNode; apenasAgenda?: boolean;
+}) {
   const path = usePathname();
   const router = useRouter();
 
@@ -28,7 +30,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs text-muted mt-1">{brand.clinicName}</p>
         </div>
         <nav className="px-3 space-y-1">
-          {nav.map(({ href, label, icon: Icon }) => {
+          {nav.filter(({ href }) => !apenasAgenda || href !== "/").map(({ href, label, icon: Icon }) => {
             const active = href === "/" ? path === "/" : path.startsWith(href);
             return (
               <Link key={href} href={href}
