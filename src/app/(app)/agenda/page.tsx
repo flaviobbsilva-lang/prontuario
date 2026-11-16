@@ -26,7 +26,7 @@ export default async function Agenda({ searchParams }: {
   const inicio = new Date(dia + "T00:00:00-03:00");
   const banco = await createClient();
   const [agenda, pacientes] = await Promise.all([
-    banco.from("agendamentos").select("id, paciente_id, inicio, fim, pacientes(nome)")
+    banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, pacientes(nome)")
       .eq("cancelado", false).lt("inicio", new Date(+inicio + 86400000).toISOString())
       .gt("fim", inicio.toISOString()).order("inicio"),
     banco.from("pacientes").select("id, nome").eq("ativo", true),
@@ -36,6 +36,7 @@ export default async function Agenda({ searchParams }: {
   const opcoes = nomes.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>);
   const indisponivel = Boolean(agenda.error || pacientes.error);
   const erros: Record<string, string> = {
+    contato: "Selecione um paciente ou informe um telefone válido para a primeira consulta.",
     ocupado: "Já existe uma consulta nesse horário.",
     horario: "Confira o horário e a duração.",
     salvar: "Não foi possível salvar a alteração.",
@@ -67,7 +68,9 @@ export default async function Agenda({ searchParams }: {
         {params.erro && erros[params.erro] && <p role="alert" className="text-red-700">{erros[params.erro]}</p>}
         {indisponivel ? <p role="alert">Agenda indisponível. Verifique a configuração do banco.</p> : <>
           <form action={salvarAgenda.bind(null, dia, null)} className="flex flex-wrap items-end gap-2 text-sm">
-            <label className="grid gap-1">Paciente<select className={campo} name="paciente" required defaultValue=""><option value="" disabled>Selecione</option>{opcoes}</select></label>
+            <label className="grid gap-1">Paciente<select className={campo} name="paciente" defaultValue=""><option value="">Sem ficha cadastrada</option>{opcoes}</select></label>
+            <label className="grid gap-1">Telefone de contato<input className={campo} name="telefone" type="tel" maxLength={40} /></label>
+            <label className="grid gap-1">Nome (opcional)<input className={campo} name="nome" maxLength={160} /></label>
             <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" required /></label>
             <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue="30" required /></label>
             <button className="rounded-lg bg-purple px-3 py-2 text-white">Agendar</button>
@@ -75,14 +78,24 @@ export default async function Agenda({ searchParams }: {
           {!agenda.data?.length && <p className="text-sm text-muted">Nenhuma consulta agendada.</p>}
           {agenda.data?.map((item) => {
             const paciente = Array.isArray(item.pacientes) ? item.pacientes[0] : item.pacientes;
-            const nome = paciente ? decryptField(paciente.nome) : "Paciente";
+            const nomeContato = item.contato_nome ? decryptField(item.contato_nome) : "";
+            const telefone = item.contato_telefone ? decryptField(item.contato_telefone) : "";
+            const nome = paciente ? decryptField(paciente.nome) : nomeContato || "Primeira consulta";
             const dataInicio = new Intl.DateTimeFormat("sv-SE", { timeZone: fuso }).format(new Date(item.inicio));
             return <article key={item.id} className="rounded-lg border border-lilac bg-white p-3 text-sm">
-              <p>{hora(item.inicio)} às {hora(item.fim)} · <Link className="text-purple underline" href={"/pacientes/" + item.paciente_id}>{nome}</Link></p>
+              <p>{hora(item.inicio)} às {hora(item.fim)} · {item.paciente_id
+                ? <Link className="text-purple underline" href={"/pacientes/" + item.paciente_id}>{nome}</Link>
+                : nome}{telefone && <> · {telefone}</>}</p>
               <details className="mt-2">
                 <summary className="cursor-pointer">Editar consulta</summary>
                 <form action={salvarAgenda.bind(null, dataInicio, item.id)} className="mt-2 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="paciente" value={item.paciente_id} />
+                  <label className="grid gap-1">Vincular à ficha<select className={campo} name="paciente" defaultValue={item.paciente_id ?? ""}>
+                    <option value="">Sem ficha cadastrada</option>
+                    {item.paciente_id && !nomes.some((p) => p.id === item.paciente_id) && <option value={item.paciente_id}>{nome}</option>}
+                    {opcoes}
+                  </select></label>
+                  <label className="grid gap-1">Telefone de contato<input className={campo} name="telefone" type="tel" maxLength={40} defaultValue={telefone} /></label>
+                  <label className="grid gap-1">Nome (opcional)<input className={campo} name="nome" maxLength={160} defaultValue={nomeContato} /></label>
                   <label className="grid gap-1">Data<input className={campo} name="data" type="date" defaultValue={dataInicio} required /></label>
                   <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" defaultValue={hora(item.inicio)} required /></label>
                   <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue={(Date.parse(item.fim) - Date.parse(item.inicio)) / 60000} required /></label>
