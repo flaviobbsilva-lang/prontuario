@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import type { ScaleDefinition } from "@/domain/escalas";
 import EscalaForm from "@/components/EscalaForm";
 import EvolutionChart, { type SeriePonto } from "@/components/EvolutionChart";
@@ -57,7 +57,7 @@ export default function PacienteTabs({ paciente, historia, notas, respostas, esc
       <section className="mt-6">
         <div hidden={aba !== "neuro"}><Neuromodulacao pacienteId={paciente.id} notas={notas} /></div>
         {aba === "historia" && <HistoriaTab pacienteId={paciente.id} historia={historia} />}
-        {aba === "soap" && <SoapTab pacienteId={paciente.id} notas={notas} />}
+        {aba === "soap" && <EvolucoesTab pacienteId={paciente.id} notas={notas} />}
         {aba === "escalas" && <EscalasTab pacienteId={paciente.id} escalas={escalas} respostas={respostas} />}
       </section>
     </div>
@@ -84,35 +84,50 @@ function HistoriaTab({ pacienteId, historia }: { pacienteId: string; historia: a
   );
 }
 
-function SoapTab({ pacienteId, notas }: { pacienteId: string; notas: any[] }) {
-  const [n, setN] = useState({ subjetivo: "", objetivo: "", avaliacao: "", plano: "" });
-  const campos = [["subjetivo", "S — Subjetivo"], ["objetivo", "O — Objetivo"], ["avaliacao", "A — Avaliação"], ["plano", "P — Plano"]] as const;
+function EvolucoesTab({ pacienteId, notas }: { pacienteId: string; notas: any[] }) {
+  const [texto, setTexto] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function salvar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const conteudo = texto.trim();
+    if (!conteudo || salvando) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      await criarNota(pacienteId, { subjetivo: conteudo });
+      setTexto((atual) => atual.trim() === conteudo ? "" : atual);
+    } catch {
+      setErro("Não foi possível salvar a evolução. Tente novamente.");
+    } finally {
+      setSalvando(false);
+    }
+  }
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-lilac/60 bg-white p-4 space-y-3">
-        <GravadorAnamnese inserir={(texto) => setN((atual) => ({
-          ...atual,
-          subjetivo: [atual.subjetivo, texto].filter(Boolean).join("\n\n"),
-        }))} />
-        {campos.map(([k, label]) => (
-          <label key={k} className="block text-sm text-ink">{label}
-            <textarea rows={2} value={(n as any)[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })}
+        <GravadorAnamnese inserir={(transcricao) =>
+          setTexto((atual) => [atual, transcricao].filter(Boolean).join("\n\n"))} />
+        <form onSubmit={salvar} className="space-y-3">
+          <label className="block text-sm font-medium text-ink">Evoluções
+            <textarea rows={7} value={texto} onChange={(e) => setTexto(e.target.value)}
               className="mt-1 w-full rounded-lg border border-lilac px-3 py-2 outline-none focus:border-purple" />
           </label>
-        ))}
-        <button onClick={async () => { await criarNota(pacienteId, n); setN({ subjetivo: "", objetivo: "", avaliacao: "", plano: "" }); }}
-          className="rounded-lg bg-purple px-4 py-2 text-white text-sm font-medium">Adicionar evolução</button>
+          <button type="submit" disabled={salvando || !texto.trim()}
+            className="rounded-lg bg-purple px-4 py-2 text-white text-sm font-medium disabled:opacity-50">
+            {salvando ? "Salvando…" : "Adicionar evolução"}
+          </button>
+          {erro && <p role="alert" className="text-sm text-red-700">{erro}</p>}
+        </form>
       </div>
       <div className="space-y-3">
         {notas.map((nota) => (
           <div key={nota.id} className="rounded-lg border border-lilac/50 bg-white p-4">
             <p className="text-xs text-muted">{new Date(nota.created_at).toLocaleString("pt-BR")}</p>
-            <div className="mt-2 text-sm text-ink space-y-1">
-              {nota.subjetivo && <p><b>S:</b> {nota.subjetivo}</p>}
-              {nota.objetivo && <p><b>O:</b> {nota.objetivo}</p>}
-              {nota.avaliacao && <p><b>A:</b> {nota.avaliacao}</p>}
-              {nota.plano && <p><b>P:</b> {nota.plano}</p>}
-            </div>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm text-ink">
+              {[nota.subjetivo, nota.objetivo, nota.avaliacao, nota.plano].filter(Boolean).join("\n\n")}
+            </p>
           </div>
         ))}
       </div>
