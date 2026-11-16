@@ -11,6 +11,7 @@ const hora = (data: string) => new Date(data).toLocaleTimeString("pt-BR", {
   timeZone: fuso, hour: "2-digit", minute: "2-digit",
 });
 const campo = "rounded-lg border border-lilac px-2 py-2";
+type PacienteAgenda = { id: string; nome: string; telefone: string | null; data_nascimento: string; ativo: boolean };
 
 export default async function Agenda({ searchParams }: {
   searchParams: Promise<{ dia?: string; erro?: string; hora?: string }>;
@@ -26,18 +27,21 @@ export default async function Agenda({ searchParams }: {
   const dias = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
   const inicio = new Date(dia + "T00:00:00-03:00");
   const banco = await createClient();
-  const [agenda, pacientes] = await Promise.all([
-    banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, contato_nascimento, comparecimento, pacientes(nome)")
+  const [agenda, pacientes, equipe] = await Promise.all([
+    banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, contato_nascimento, comparecimento")
       .eq("cancelado", false).lt("inicio", new Date(+inicio + 86400000).toISOString())
       .gt("fim", inicio.toISOString()).order("inicio"),
-    banco.from("pacientes").select("id, nome, telefone, data_nascimento").eq("ativo", true),
+    banco.rpc("pacientes_para_agenda"),
+    banco.rpc("is_staff"),
   ]);
-  const nomes = (pacientes.data ?? []).map((p) => ({
+  const fichas = ((pacientes.data ?? []) as PacienteAgenda[]).map((p) => ({
     id: p.id, nome: decryptField(p.nome),
     telefone: p.telefone ? decryptField(p.telefone) : "",
     nascimento: p.data_nascimento ?? "",
+    ativo: p.ativo,
   }))
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const nomes = fichas.filter((p) => p.ativo);
   const indisponivel = Boolean(agenda.error || pacientes.error);
   const consultas = agenda.data ?? [];
   const intervalo = 30 * 60_000;
@@ -109,14 +113,14 @@ export default async function Agenda({ searchParams }: {
           <h3 className="font-medium">Consultas do dia</h3>
           {!consultas.length && <p className="text-sm text-muted">Nenhuma consulta agendada.</p>}
           {consultas.map((item) => {
-            const paciente = Array.isArray(item.pacientes) ? item.pacientes[0] : item.pacientes;
+            const paciente = fichas.find((ficha) => ficha.id === item.paciente_id);
             const nomeContato = item.contato_nome ? decryptField(item.contato_nome) : "";
             const telefone = item.contato_telefone ? decryptField(item.contato_telefone) : "";
             const nascimento = item.contato_nascimento ? decryptField(item.contato_nascimento) : "";
-            const nome = paciente ? decryptField(paciente.nome) : nomeContato || "Primeira consulta";
+            const nome = paciente?.nome || nomeContato || "Primeira consulta";
             const dataInicio = new Intl.DateTimeFormat("sv-SE", { timeZone: fuso }).format(new Date(item.inicio));
             return <article key={item.id} id={"consulta-" + item.id} className="rounded-lg border border-lilac bg-white p-3 text-sm">
-              <p>{hora(item.inicio)} às {hora(item.fim)} · {item.paciente_id
+              <p>{hora(item.inicio)} às {hora(item.fim)} · {item.paciente_id && equipe.data === true
                 ? <Link className="text-purple underline" href={"/pacientes/" + item.paciente_id}>{nome}</Link>
                 : nome}{telefone && <> · {telefone}</>}{nascimento && <> · Nascimento: {nascimento.split("-").reverse().join("/")}</>}</p>
               <form action={registrarComparecimento.bind(null, dia, item.id)} className="mt-2 flex flex-wrap items-end gap-2">
