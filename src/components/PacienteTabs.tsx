@@ -5,6 +5,7 @@ import EscalaForm from "@/components/EscalaForm";
 import EvolutionChart, { type SeriePonto } from "@/components/EvolutionChart";
 import { salvarHistoria, criarNota } from "@/app/actions";
 import { brand } from "@/lib/brand";
+import GravadorAnamnese from "@/components/GravadorAnamnese";
 import Neuromodulacao from "@/components/Neuromodulacao";
 
 const CAMPOS_HISTORIA: Array<[string, string]> = [
@@ -89,6 +90,10 @@ function SoapTab({ pacienteId, notas }: { pacienteId: string; notas: any[] }) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-lilac/60 bg-white p-4 space-y-3">
+        <GravadorAnamnese inserir={(texto) => setN((atual) => ({
+          ...atual,
+          subjetivo: [atual.subjetivo, texto].filter(Boolean).join("\n\n"),
+        }))} />
         {campos.map(([k, label]) => (
           <label key={k} className="block text-sm text-ink">{label}
             <textarea rows={2} value={(n as any)[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })}
