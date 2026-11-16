@@ -140,9 +140,14 @@ export default async function Agenda({ searchParams }: {
                   <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" defaultValue={hora(item.inicio)} required /></label>
                   <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue={(Date.parse(item.fim) - Date.parse(item.inicio)) / 60000} required /></label>
                   <button className="rounded-lg bg-purple px-3 py-2 text-white">Salvar</button>
-                  <button className="rounded-lg border border-lilac px-3 py-2 text-red-700" name="acao" value="cancelar" formNoValidate>Cancelar consulta</button>
                 </form>
               </details>
+              <form action={salvarAgenda.bind(null, dia, item.id)} className="mt-3">
+                <button type="submit" name="acao" value="cancelar"
+                  className="rounded-lg border border-lilac px-3 py-2 text-red-700">
+                  Cancelar agendamento
+                </button>
+              </form>
             </article>;
           })}
         </>}
