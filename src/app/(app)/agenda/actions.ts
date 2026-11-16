@@ -6,6 +6,20 @@ import { revalidatePath } from "next/cache";
 import { encryptRandom } from "@/lib/crypto";
 import { dataNascimentoValida } from "@/lib/validation";
 
+export async function registrarComparecimento(dia: string, id: string, form: FormData) {
+  const situacao = form.get("comparecimento");
+  const url = "/agenda?dia=" + encodeURIComponent(dia);
+  if (situacao !== "agendado" && situacao !== "compareceu" && situacao !== "faltou") {
+    redirect(url + "&erro=salvar");
+  }
+  const banco = await createClient();
+  const { data, error } = await banco.from("agendamentos").update({ comparecimento: situacao })
+    .eq("id", id).eq("cancelado", false).select("id").single();
+  if (error || !data) redirect(url + "&erro=salvar");
+  revalidatePath("/agenda");
+  redirect(url);
+}
+
 export async function salvarAgenda(dia: string, id: string | null, form: FormData) {
   const supabase = await createClient();
   const hora = String(form.get("hora") ?? "");

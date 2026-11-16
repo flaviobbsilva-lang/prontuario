@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { decryptField } from "@/lib/crypto";
-import { salvarAgenda } from "./actions";
+import { registrarComparecimento, salvarAgenda } from "./actions";
 
 const fuso = "America/Sao_Paulo";
 const iso = (data: Date) => data.toISOString().slice(0, 10);
@@ -12,7 +12,7 @@ const hora = (data: string) => new Date(data).toLocaleTimeString("pt-BR", {
 const campo = "rounded-lg border border-lilac px-2 py-2";
 
 export default async function Agenda({ searchParams }: {
-  searchParams: Promise<{ dia?: string; erro?: string }>;
+  searchParams: Promise<{ dia?: string; erro?: string; hora?: string }>;
 }) {
   const params = await searchParams;
   const hoje = new Intl.DateTimeFormat("sv-SE", { timeZone: fuso }).format(new Date());
@@ -26,7 +26,7 @@ export default async function Agenda({ searchParams }: {
   const inicio = new Date(dia + "T00:00:00-03:00");
   const banco = await createClient();
   const [agenda, pacientes] = await Promise.all([
-    banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, contato_nascimento, pacientes(nome)")
+    banco.from("agendamentos").select("id, paciente_id, inicio, fim, contato_nome, contato_telefone, contato_nascimento, comparecimento, pacientes(nome)")
       .eq("cancelado", false).lt("inicio", new Date(+inicio + 86400000).toISOString())
       .gt("fim", inicio.toISOString()).order("inicio"),
     banco.from("pacientes").select("id, nome").eq("ativo", true),
@@ -35,6 +35,12 @@ export default async function Agenda({ searchParams }: {
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   const opcoes = nomes.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>);
   const indisponivel = Boolean(agenda.error || pacientes.error);
+  const consultas = agenda.data ?? [];
+  const intervalo = 30 * 60_000;
+  const primeiroHorario = Math.min(8 * 2, ...consultas.map((item) =>
+    Math.max(0, Math.floor((Date.parse(item.inicio) - +inicio) / intervalo))));
+  const ultimoHorario = Math.max(19 * 2, ...consultas.map((item) =>
+    Math.min(48, Math.ceil((Date.parse(item.fim) - +inicio) / intervalo))));
   const erros: Record<string, string> = {
     identificacao: "Para a primeira consulta, informe o nome e uma data de nascimento válida.",
     contato: "Selecione um paciente ou informe um telefone válido para a primeira consulta.",
@@ -68,27 +74,60 @@ export default async function Agenda({ searchParams }: {
         <h2 className="text-lg font-medium">Agenda de {dia.split("-").reverse().join("/")}</h2>
         {params.erro && erros[params.erro] && <p role="alert" className="text-red-700">{erros[params.erro]}</p>}
         {indisponivel ? <p role="alert">Agenda indisponível. Verifique a configuração do banco.</p> : <>
-          <form action={salvarAgenda.bind(null, dia, null)} className="flex flex-wrap items-end gap-2 text-sm">
+          <section aria-label="Grade de horários" className="space-y-2">
+            <h3 className="font-medium">Grade de horários</h3>
+            <div className="grid grid-cols-3 gap-1 text-center text-xs sm:grid-cols-5">
+              {Array.from({ length: ultimoHorario - primeiroHorario }, (_, index) => {
+                const instante = +inicio + (primeiroHorario + index) * intervalo;
+                const horario = hora(new Date(instante).toISOString());
+                const ocupadas = consultas.filter((item) =>
+                  Date.parse(item.inicio) < instante + intervalo && Date.parse(item.fim) > instante);
+                return ocupadas.length
+                  ? <div key={instante} className="rounded border border-lilac bg-lilac/30 px-1 py-2">
+                      <span className="block">{horario}</span>
+                      {ocupadas.map((item) => <a key={item.id} href={"#consulta-" + item.id}
+                        className="block text-purple underline">Ocupado</a>)}
+                    </div>
+                  : <Link key={instante} className="rounded border border-lilac px-1 py-2 hover:bg-lilac/20"
+                      href={`/agenda?dia=${dia}&hora=${horario}#novo-agendamento`}>
+                      <span className="block">{horario}</span>Livre
+                    </Link>;
+              })}
+            </div>
+          </section>
+          <form id="novo-agendamento" key={dia + (params.hora ?? "")}
+            action={salvarAgenda.bind(null, dia, null)} className="flex flex-wrap items-end gap-2 text-sm">
             <label className="grid gap-1">Paciente<select className={campo} name="paciente" defaultValue=""><option value="">Primeira consulta</option>{opcoes}</select></label>
             <label className="grid gap-1">Telefone de contato<input className={campo} name="telefone" type="tel" maxLength={40} /></label>
             <label className="grid gap-1">Nome completo<input className={campo} name="nome" maxLength={160} /></label>
             <label className="grid gap-1">Data de nascimento<input className={campo} name="nascimento" type="date" max={hoje} /></label>
-            <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" required /></label>
+            <label className="grid gap-1">Horário<input className={campo} name="hora" type="time" defaultValue={params.hora} required /></label>
             <label className="grid gap-1">Duração (min)<input className={campo + " w-24"} name="duracao" type="number" min="1" max="1440" defaultValue="30" required /></label>
             <button className="rounded-lg bg-purple px-3 py-2 text-white">Agendar</button>
           </form>
-          {!agenda.data?.length && <p className="text-sm text-muted">Nenhuma consulta agendada.</p>}
-          {agenda.data?.map((item) => {
+          <h3 className="font-medium">Consultas do dia</h3>
+          {!consultas.length && <p className="text-sm text-muted">Nenhuma consulta agendada.</p>}
+          {consultas.map((item) => {
             const paciente = Array.isArray(item.pacientes) ? item.pacientes[0] : item.pacientes;
             const nomeContato = item.contato_nome ? decryptField(item.contato_nome) : "";
             const telefone = item.contato_telefone ? decryptField(item.contato_telefone) : "";
             const nascimento = item.contato_nascimento ? decryptField(item.contato_nascimento) : "";
             const nome = paciente ? decryptField(paciente.nome) : nomeContato || "Primeira consulta";
             const dataInicio = new Intl.DateTimeFormat("sv-SE", { timeZone: fuso }).format(new Date(item.inicio));
-            return <article key={item.id} className="rounded-lg border border-lilac bg-white p-3 text-sm">
+            return <article key={item.id} id={"consulta-" + item.id} className="rounded-lg border border-lilac bg-white p-3 text-sm">
               <p>{hora(item.inicio)} às {hora(item.fim)} · {item.paciente_id
                 ? <Link className="text-purple underline" href={"/pacientes/" + item.paciente_id}>{nome}</Link>
                 : nome}{telefone && <> · {telefone}</>}{nascimento && <> · Nascimento: {nascimento.split("-").reverse().join("/")}</>}</p>
+              <form action={registrarComparecimento.bind(null, dia, item.id)} className="mt-2 flex flex-wrap items-end gap-2">
+                <label className="grid gap-1">Comparecimento
+                  <select name="comparecimento" className={campo} key={item.comparecimento} defaultValue={item.comparecimento}>
+                    <option value="agendado">Agendado</option>
+                    <option value="compareceu">Compareceu</option>
+                    <option value="faltou">Faltou</option>
+                  </select>
+                </label>
+                <button className="rounded-lg border border-lilac px-3 py-2 text-purple">Salvar presença</button>
+              </form>
               <details className="mt-2">
                 <summary className="cursor-pointer">Editar consulta</summary>
                 <form action={salvarAgenda.bind(null, dataInicio, item.id)} className="mt-2 flex flex-wrap items-end gap-2">
